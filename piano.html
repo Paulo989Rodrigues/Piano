@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Piano HTML</title>
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(135deg,#111827,#374151); font-family:Arial,sans-serif;
+}
+.piano-wrap{width:min(95vw,900px); text-align:center}
+h1{color:white;margin:0 0 18px}
+.piano{
+  position:relative; height:260px; display:flex; padding:10px;
+  background:#111; border-radius:14px; box-shadow:0 20px 45px #0008;
+  user-select:none; touch-action:none;
+}
+.white{
+  position:relative; flex:1; height:240px; background:#f8fafc;
+  border:1px solid #9ca3af; border-radius:0 0 9px 9px;
+  box-shadow:0 5px 0 #cbd5e1; cursor:pointer; z-index:1;
+  display:flex; align-items:flex-end; justify-content:center; padding-bottom:14px;
+  color:#475569; font-weight:bold;
+}
+.white.active{background:#dbeafe; transform:translateY(3px);box-shadow:0 2px 0 #94a3b8}
+.black{
+  position:absolute; top:10px; width:7%; height:145px; z-index:3;
+  background:linear-gradient(90deg,#111,#374151 45%,#050505);
+  border:1px solid #000; border-radius:0 0 7px 7px; cursor:pointer;
+  box-shadow:0 8px 0 #000; color:#d1d5db;
+  display:flex; align-items:flex-end; justify-content:center; padding-bottom:10px;
+  transform:translateX(-50%);
+}
+.black.active{transform:translateX(-50%) translateY(4px);box-shadow:0 3px 0 #000}
+.hint{color:#d1d5db;margin-top:18px;font-size:14px}
+@media(max-width:600px){.piano{height:210px}.white{height:190px}.black{height:115px}}
+</style>
+</head>
+<body>
+<div class="piano-wrap">
+<h1>🎹 Meu Piano</h1>
+<div class="piano" id="piano"></div>
+<div class="hint">Use o mouse/toque ou as teclas A W S E D F T G Y H U J K</div>
+</div>
+
+<script>
+const notes = [
+  ["C4","A"],["C#4","W"],["D4","S"],["D#4","E"],["E4","D"],
+  ["F4","F"],["F#4","T"],["G4","G"],["G#4","Y"],["A4","H"],
+  ["A#4","U"],["B4","J"],["C5","K"]
+];
+
+const audio = new (window.AudioContext || window.webkitAudioContext)();
+const active = new Set();
+
+function freq(note){
+  const names=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  let m=note.match(/^([A-G]#?)(\d)$/);
+  let semis=names.indexOf(m[1])+12*(+m[2]+1);
+  return 440*Math.pow(2,(semis-69)/12);
+}
+
+function play(note){
+  if(active.has(note)) return;
+  active.add(note);
+  if(audio.state==="suspended") audio.resume();
+
+  const osc=audio.createOscillator();
+  const gain=audio.createGain();
+  osc.type="triangle";
+  osc.frequency.value=freq(note);
+  gain.gain.setValueAtTime(0.0001,audio.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.35,audio.currentTime+0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001,audio.currentTime+1.2);
+  osc.connect(gain).connect(audio.destination);
+  osc.start();
+  osc.stop(audio.currentTime+1.25);
+
+  document.querySelectorAll(`[data-note="${note}"]`).forEach(k=>k.classList.add("active"));
+}
+function stop(note){
+  active.delete(note);
+  document.querySelectorAll(`[data-note="${note}"]`).forEach(k=>k.classList.remove("active"));
+}
+
+const piano=document.getElementById("piano");
+const whites=notes.filter(n=>!n[0].includes("#"));
+whites.forEach((n,i)=>{
+  const k=document.createElement("div");
+  k.className="white"; k.dataset.note=n[0]; k.textContent=n[1];
+  k.addEventListener("pointerdown",e=>{e.preventDefault();play(n[0])});
+  k.addEventListener("pointerup",()=>stop(n[0]));
+  k.addEventListener("pointerleave",()=>{if(e?.buttons) stop(n[0])});
+  piano.appendChild(k);
+});
+
+const positions={C:1,D:2,F:4,G:5,A:6};
+notes.filter(n=>n[0].includes("#")).forEach(n=>{
+  const letter=n[0][0];
+  const octave=n[0].slice(-1);
+  const whiteIndex=whites.findIndex(w=>w[0]===
+    (letter==="C"?`C${octave}`:`${letter}${octave}`));
+  const k=document.createElement("div");
+  k.className="black"; k.dataset.note=n[0]; k.textContent=n[1];
+  k.style.left=`${((whiteIndex+1)/whites.length)*100}%`;
+  k.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();play(n[0])});
+  k.addEventListener("pointerup",()=>stop(n[0]));
+  piano.appendChild(k);
+});
+
+const map={};
+notes.forEach(n=>map[n[1].toLowerCase()]=n[0]);
+document.addEventListener("keydown",e=>{
+  if(e.repeat)return;
+  const n=map[e.key.toLowerCase()];
+  if(n)play(n);
+});
+document.addEventListener("keyup",e=>{
+  const n=map[e.key.toLowerCase()];
+  if(n)stop(n);
+});
+</script>
+</body>
+</html>
